@@ -1,0 +1,40 @@
+{
+    "caliper": {
+        "blockchain": "fisco-bcos"
+    },
+    "fisco-bcos": {
+        "config": {
+         	"privateKey": "bcec428d5205abe0f0cc8a734083908d9eb8563e31f943d760786edf42ad67dd",
+            "account": "0x64fa644d2a694681bd6addd6c5e36cccd8dcdde"
+        },
+        "network": {
+            "nodes": [
+                {
+                    "ip": "127.0.0.1",
+                    "rpcPort": "8545",
+                    "channelPort": "20200"
+                }
+            ],
+            "authentication": {
+                "key": "/root/tools/nodes/127.0.0.1/sdk/sdk.key",
+                "cert": "/root/tools/nodes/127.0.0.1/sdk/sdk.crt",
+                "ca": "/root/tools/nodes/127.0.0.1/sdk/ca.crt"
+            },
+            "groupID": 1,
+            "timeout": 10000
+        },
+        "smartContracts": [
+            {
+                "id": "helloworld",
+                "address": "0x0db5c8d0ec0db276267608a3b5f20154c4669648",
+                "language": "precompiled",
+                "version": "v0"
+            }
+        ]
+    },
+    "info": {
+        "Version": "2.0.0",
+        "Size": "6 Nodes",
+        "Distribution": "Single Host"
+    }
+}
