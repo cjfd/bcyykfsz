@@ -1,0 +1,117 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - db: "mariadb:10.2"
+            py: "3.9"
+
+          - db: "mariadb:10.3"
+            py: "3.8"
+
+          - db: "mariadb:10.5"
+            py: "3.7"
+
+          - db: "mariadb:10.7"
+            py: "3.11-dev"
+
+          - db: "mysql:5.7"
+            py: "pypy-3.8"
+
+          - db: "mysql:8.0"
+            py: "3.9"
+            mysql_auth: true
+
+          - db: "mysql:8.0"
+            py: "3.10"
+
+    services:
+      mysql:
+        image: "${{ matrix.db }}"
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        options: "--name=mysqld"
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.py }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.py }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements-dev.txt'
+
+      - name: Install dependency
+        run: |
+          pip install -U -r requirements-dev.txt
+
+      - name: Set up MySQL
+        run: |
+          while :
+          do
+              sleep 1
+              mysql -h127.0.0.1 -uroot -e 'select version()' && break
+          done
+          mysql -h127.0.0.1 -uroot -e "SET GLOBAL local_infile=on"
+          mysql -h127.0.0.1 -uroot --comments < ci/docker-entrypoint-initdb.d/init.sql
+          mysql -h127.0.0.1 -uroot --comments < ci/docker-entrypoint-initdb.d/mysql.sql
+          mysql -h127.0.0.1 -uroot --comments < ci/docker-entrypoint-initdb.d/mariadb.sql
+          cp ci/docker.json pymysql/tests/databases.json
+
+      - name: Run test
+        run: |
+          pytest -v --cov --cov-config .coveragerc pymysql
+
+      - name: Run MySQL8 auth test
+        if: ${{ matrix.mysql_auth }}
+        run: |
+          docker cp mysqld:/var/lib/mysql/public_key.pem "${HOME}"
+          docker cp mysqld:/var/lib/mysql/ca.pem "${HOME}"
+          docker cp mysqld:/var/lib/mysql/server-cert.pem "${HOME}"
+          docker cp mysqld:/var/lib/mysql/client-key.pem "${HOME}"
+          docker cp mysqld:/var/lib/mysql/client-cert.pem "${HOME}"
+          pytest -v --cov --cov-config .coveragerc tests/test_auth.py;
+
+      - name: Report coverage
+        if: github.repository == 'PyMySQL/PyMySQL'
+        run: coveralls --service=github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_FLAG_NAME: ${{ matrix.py }}-${{ matrix.db }}
+          COVERALLS_PARALLEL: true
+
+  coveralls:
+    if: github.repository == 'PyMySQL/PyMySQL'
+    name: Finish coveralls
+    runs-on: ubuntu-20.04
+    needs: test
+    steps:
+    - name: requirements.
+      run: |
+        echo coveralls > requirements.txt
+
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - name: Finished
+      run: |
+        pip install --upgrade coveralls
+        coveralls --finish --service=github
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
